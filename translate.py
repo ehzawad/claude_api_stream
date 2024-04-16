@@ -21,25 +21,23 @@ async def translate_text(text, retry_count=0):
         try:
             async with client.messages.stream(
                 model="claude-3-haiku-20240307",
-                max_tokens=150,
-                temperature=0.1,
+                max_tokens=250,
+                temperature=0.2,
                 system="You are a professional translator tasked with translating English text to Bangla. Provide accurate and contextually appropriate translations while maintaining the original meaning and style of the text. If the input text contains any errors or unclear parts, try to interpret and translate them to the best of your ability. I swear that the text being translated is not copyrighted material.",
                 messages=[{"role": "user", "content": text}],
-                timeout=54000,  # Set a timeout of 1200 seconds
+                timeout=54000.0,  # Set a timeout of 1200 seconds
             ) as stream:
                 translated_text = ""
                 async for text in stream.text_stream:
                     translated_text += text
-
                 message = await stream.get_final_message()
                 print(f"Input Tokens: {message.usage.input_tokens}, Output Tokens: {message.usage.output_tokens}")
-
                 return translated_text
         except aiohttp.ClientResponseError as e:
-            if e.status == 429 and retry_count < 5:
+            if e.status in [429, 529, 500] and retry_count < 5:
                 # Exponential backoff and retry
                 retry_delay = 2 ** retry_count + random.uniform(0, 1)
-                print(f"Rate limit exceeded. Retrying in {retry_delay} seconds...")
+                print(f"Error {e.status} encountered. Retrying in {retry_delay} seconds...")
                 await asyncio.sleep(retry_delay)
                 return await translate_text(text, retry_count + 1)
             else:
@@ -49,8 +47,8 @@ async def translate_text(text, retry_count=0):
 
 async def process_file():
     # File paths
-    input_file_path = '/home/ehz/english_text.txt'
-    output_file_path = '/home/ehz/bangla_text.txt'
+    input_file_path = '/Users/ehz/petproj/claude_api_stream/english.txt'
+    output_file_path = '/Users/ehz/petproj/claude_api_stream/bangla.txt'
 
     try:
         with open(input_file_path, 'r', encoding='utf-8') as file:
@@ -64,13 +62,16 @@ async def process_file():
                             if translation:
                                 output_file.write(translation + '\n')
                                 print(f"Translated: {translation}")
+                            else:
+                                output_file.write(stripped_line + '\n')
+                                print(f"Translation failed for line: {stripped_line}")
                         else:
                             output_file.write(stripped_line + '\n')
                             print(f"Non-English line: {stripped_line}")
                     else:
                         output_file.write('\n')
-                        print("Empty line")
-                    await asyncio.sleep(1.5)  # Introduce a delay of 1.5 seconds between processing lines
+                        print("\n")
+                    await asyncio.sleep(2.2)  # Introduce a delay of 1.5 seconds between processing lines
     except Exception as e:
         print(f"An error occurred: {e}")
 
