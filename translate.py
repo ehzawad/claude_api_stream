@@ -4,9 +4,10 @@ import asyncio
 import aiohttp
 import random
 import time
+import traceback
 
 # Initialize the Anthropic client with your API key
-client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"), timeout=54000)
+client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 async def is_english(text):
     try:
@@ -16,16 +17,15 @@ async def is_english(text):
     else:
         return True
 
-async def translate_text(text, retry_count=0):
+async def translate_text(text, retry_count=0, max_retries=5):
     if text.strip():
         try:
             async with client.messages.stream(
                 model="claude-3-haiku-20240307",
-                max_tokens=250,
-                temperature=0.2,
-                system="You are a professional translator tasked with translating English text to Bangla. Provide accurate and contextually appropriate translations while maintaining the original meaning and style of the text. If the input text contains any errors or unclear parts, try to interpret and translate them to the best of your ability. I swear that the text being translated is not copyrighted material.",
+                max_tokens=280,
+                temperature=0.3,
+                system="You are a professional translator tasked with translating English text to Bangla. Provide accurate and contextually appropriate translations while maintaining the original meaning and style of the text. this is not copyrighted material.",
                 messages=[{"role": "user", "content": text}],
-                timeout=54000.0,  # Set a timeout of 1200 seconds
             ) as stream:
                 translated_text = ""
                 async for text in stream.text_stream:
@@ -34,14 +34,18 @@ async def translate_text(text, retry_count=0):
                 print(f"Input Tokens: {message.usage.input_tokens}, Output Tokens: {message.usage.output_tokens}")
                 return translated_text
         except aiohttp.ClientResponseError as e:
-            if e.status in [429, 529, 500] and retry_count < 5:
+            if e.status in [429, 529, 500] and retry_count < max_retries:
                 # Exponential backoff and retry
                 retry_delay = 2 ** retry_count + random.uniform(0, 1)
                 print(f"Error {e.status} encountered. Retrying in {retry_delay} seconds...")
                 await asyncio.sleep(retry_delay)
-                return await translate_text(text, retry_count + 1)
+                return await translate_text(text, retry_count + 1, max_retries)
             else:
-                raise e
+                print(f"Translation failed for line: {text}. Error: {e.status} - {e.message}")
+                return None
+        except Exception as e:
+            print(f"Translation failed for line: {text}. Error: {str(e)}")
+            return None
     else:
         return ""
 
@@ -71,9 +75,10 @@ async def process_file():
                     else:
                         output_file.write('\n')
                         print("\n")
-                    await asyncio.sleep(2.2)  # Introduce a delay of 1.5 seconds between processing lines
+                    await asyncio.sleep(2.2)  # Introduce a delay of 2.0 seconds between processing lines
     except Exception as e:
         print(f"An error occurred: {e}")
+        traceback.print_exc()  # Print the traceback for more detailed information
 
 async def async_file_iterator(file):
     loop = asyncio.get_event_loop()
