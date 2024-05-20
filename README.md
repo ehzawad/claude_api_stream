@@ -1,6 +1,6 @@
 # claude_api_stream
 
-
+```sh
 asrserver(){
 ssh root@192.168.10.98
 }
@@ -55,6 +55,7 @@ function pushmtb() {
     scp -r -o ProxyCommand="$proxy_command" "$local_path" "$remote_user@$remote_host:$remote_path"
   else
     scp -o ProxyCommand="$proxy_command" "$local_path" "$remote_user@$remote_host:$remote_path"
+```
   fi
 
   echo "Push operation completed."
